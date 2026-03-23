@@ -106,6 +106,39 @@ scheme  host            port path      query        fragment
 - HTTP/2 — мультиплексирование потоков, сжатие заголовков (HPACK)
 - HTTP/3 — поверх QUIC/UDP, устойчивость к packet loss
 
+**Статический контент в Express:**
+
+`express.static` — встроенный middleware для раздачи файлов с диска (HTML, CSS, JS, изображений) без написания маршрутов вручную.
+
+```js
+const express = require("express");
+const path = require("path");
+const app = express();
+
+// Файлы из папки public/ доступны по корневому URL
+app.use(express.static(path.join(__dirname, "public")));
+// public/index.html → GET /
+// public/style.css  → GET /style.css
+
+// С базовым путём
+app.use("/static", express.static(path.join(__dirname, "public")));
+// public/style.css → GET /static/style.css
+```
+
+Как обрабатывается запрос: Express ищет файл на диске → если найден, определяет MIME-тип (`text/css`, `image/png` и т.д.), выставляет заголовки кэша и отдаёт файл → если не найден, вызывает `next()` и запрос идёт к следующему middleware/роуту.
+
+**Заголовки кэширования для статики:**
+
+| Заголовок | Поведение |
+|-----------|----------|
+| `ETag: "abc123"` | Fingerprint содержимого. Браузер шлёт `If-None-Match`; если файл не изменился — сервер отвечает `304 Not Modified` (тело не передаётся) |
+| `Last-Modified: <date>` | Дата изменения файла. Браузер шлёт `If-Modified-Since`; не изменился → `304` |
+| `Cache-Control: max-age=N` | Браузер кэширует N секунд **без обращения к серверу** |
+
+По умолчанию `express.static` выставляет `ETag` и `Last-Modified`. `max-age` можно задать через опцию `{ maxAge: '1d' }`.
+
+> Разница: `ETag`/`304` — браузер всё равно идёт к серверу, но тело не передаётся. `Cache-Control: max-age` — браузер вообще не делает запрос до истечения срока.
+
 #### Пререквизиты (утилиты, софт, библиотеки)
 - Git
 - VS Code
@@ -226,6 +259,7 @@ Connection: close
 - [ ] 8. Добавить версионирование API (`/v1/tasks`).
 - [ ] 9. Реализовать пагинацию (`?page=1&limit=20`) и сортировку (`?sort=createdAt:desc`).
 - [ ] 10. Сгенерировать OpenAPI/Swagger-документацию для API (`swagger-jsdoc` + `swagger-ui-express`).
+- [ ] 11. Раздать статические файлы через `express.static`, проверить заголовки `ETag` и `Cache-Control` в браузере и через `curl -v`.
 
 #### План вопросов
 - [ ] 1. Что происходит между клиентом и сервером при одном HTTP-запросе?
@@ -240,6 +274,7 @@ Connection: close
 - [ ] 10. Чем `HttpOnly` кука отличается от обычной? Какие атрибуты куки защищают от XSS и CSRF?
 - [ ] 11. Чем `SameSite=Strict` отличается от `SameSite=Lax`?
 - [ ] 12. Где лучше хранить токен аутентификации: cookie или localStorage — и почему?
+- [ ] 13. Как Express раздаёт статические файлы? Какие заголовки отвечают за кэш браузера (`ETag`, `Cache-Control`, `Last-Modified`) и в чём разница между `304` и `max-age`?
 
 ### 2.2 Async Node.js и Event Loop
 

@@ -229,3 +229,87 @@ Connection: close
   - Почему `POST /tasks` возвращает `201`, а не `200`?
   - Зачем в `Authorization: Basic` используется base64?
 
+---
+
+## Часть 3 — Статический контент
+
+### Теория
+
+`express.static` — встроенный middleware Express для раздачи файлов с диска без написания маршрутов вручную.
+
+```js
+const express = require("express");
+const path = require("path");
+const app = express();
+
+// Все файлы из public/ доступны по корневому URL
+app.use(express.static(path.join(__dirname, "public")));
+// public/index.html → GET /
+// public/style.css  → GET /style.css
+// public/img/logo.png → GET /img/logo.png
+
+// С базовым путём: public/style.css → GET /static/style.css
+app.use("/static", express.static(path.join(__dirname, "public")));
+
+// Опции
+app.use(express.static(path.join(__dirname, "public"), {
+  maxAge: "1d",        // Cache-Control: max-age=86400
+  etag: true,          // ETag включён по умолчанию
+  index: "index.html", // файл по умолчанию для директории
+  dotfiles: "ignore",  // скрывать файлы вида .env, .htaccess
+}));
+```
+
+**Как обрабатывается запрос:**
+1. `GET /style.css` приходит на сервер.
+2. Express ищет файл `public/style.css` на диске.
+3. Найден → определяет MIME-тип (`text/css`), выставляет `ETag`, `Last-Modified`, `Cache-Control` и отдаёт файл.
+4. Не найден → вызывает `next()`, запрос идёт к следующему middleware/роуту.
+
+> Порядок важен: `express.static` должен регистрироваться **до** маршрутов API, но **после** security-middleware.
+
+**Заголовки кэширования:**
+
+| Заголовок | Поведение |
+|-----------|----------|
+| `ETag: "abc123"` | Fingerprint файла. Браузер шлёт `If-None-Match`; файл не изменился → `304 Not Modified` (тело не передаётся) |
+| `Last-Modified: <date>` | Дата последнего изменения. Браузер шлёт `If-Modified-Since`; не изменился → `304` |
+| `Cache-Control: max-age=86400` | Браузер кэширует 24 часа **без запроса к серверу** |
+
+> Разница: `ETag`/`304` — браузер всё равно делает запрос, но тело не передаётся. `max-age` — браузер вообще не обращается к серверу до истечения срока.
+
+### Задание
+
+1. Создай папку `public/` в `01-http-rest-crud/` с тремя файлами:
+   - `public/index.html` — страница с заголовком `<h1>Tasks App</h1>` и тегом `<script src="/app.js"></script>`
+   - `public/style.css` — минимальный `body { font-family: sans-serif; }`
+   - `public/app.js` — скрипт делает `fetch("/tasks")` и выводит результат в `console.log`
+
+2. Подключи `express.static` в `server.js` **до** маршрутов API:
+   ```js
+   app.use(express.static(path.join(__dirname, "public")));
+   ```
+
+3. Проверь, что `GET /` отдаёт `index.html` с `Content-Type: text/html`, а `GET /tasks` по-прежнему отдаёт JSON.
+
+4. Открой DevTools → Network, перезагрузи страницу:
+   - Первая загрузка → файлы возвращаются с `200`.
+   - Вторая загрузка → должен появиться `304 Not Modified` для неизменённых файлов.
+
+5. Проверь заголовки через `curl`:
+   ```bash
+   curl -v http://localhost:8080/style.css
+   ```
+   Найди в выводе: `Content-Type: text/css`, `ETag: "..."`, `Last-Modified: ...`
+
+6. Добавь `maxAge` и убедись, что появился `Cache-Control`:
+   ```js
+   app.use(express.static(path.join(__dirname, "public"), { maxAge: "1d" }));
+   ```
+
+7. Убедись, что `dotfiles: "ignore"` (дефолт) не отдаёт файл `.env` при запросе `GET /.env`.
+
+### Результат
+- Папка `public/` с тремя файлами.
+- В `notes.md` зафиксированы заголовки из `curl -v` и разница между ответами `200` и `304`.
+
