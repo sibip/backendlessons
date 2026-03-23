@@ -1,4 +1,4 @@
-# 06 Auth and Security
+# 08 Auth and Security
 
 ## Цель
 Реализовать безопасовую основу: регистрация, логин, защита endpoint.

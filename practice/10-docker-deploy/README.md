@@ -1,4 +1,4 @@
-# 08 Docker and Deploy
+# 10 Docker and Deploy
 
 ## Цель
 Упаковать backend и зависимости в контейнеры и поднять рабочий стенд.
